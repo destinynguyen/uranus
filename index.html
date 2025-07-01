@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Venus Orbit with Three.js</title>
+  <style>
+    /* Make the canvas fill the window */
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block; /* removes scrollbars in some browsers */
+    }
+  </style>
+  <!-- Import map to let the browser resolve "three" and related addon paths -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+    }
+  }
+  </script>
+  <!-- Font Awesome for icon glyphs -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <style>
+    /* Right-side dropdown menu styles */
+    .menu-container {
+      position: absolute;
+      bottom: 60px; /* distance from bottom */
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .menu-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      gap: 16px;
+    }
+
+    .menu-list li {
+      text-align: center;
+    }
+
+    .menu-list li i {
+      font-size: 26px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      line-height: 28px;
+    }
+
+    .fact-box {
+      position: absolute; /* float below the icons so icons stay put */
+      top: 58px; /* just below 48px icon + 10px gap */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 260px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .fact-box.show {
+      display: block;
+    }
+
+    /* fire icon marker */
+    .icon-marker {
+      position: relative;
+      display: inline-block;
+    }
+
+    .icon-marker i {
+      color: #ff4500;
+      font-size: 18px;
+      text-shadow: 0 0 4px rgba(0,0,0,0.7);
+    }
+
+    .marker-text {
+      position: absolute;
+      left: 24px;
+      top: -4px;
+      font-size: 12px;
+      color: #fff;
+      text-shadow: 0 0 2px rgba(0,0,0,0.7);
+      white-space: nowrap;
+    }
+
+    .calendar-container{
+      position: absolute;
+      bottom: 150px;            /* higher above icon row */
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.65);
+      padding:12px 16px;
+      border-radius:8px;
+      z-index:10000;
+      font-family:sans-serif;
+      color:#fff;
+      width:320px;
+      text-align:center;
+    }
+    .calendar-slider{ width:100%; margin:0; }
+    .calendar-labels{ position:relative; font-size:12px; }
+    .calendar-labels span{ position:absolute; top:-4px; transform:translateX(-50%); }
+    .calendar-labels span:first-child{ left:0; }
+    .calendar-labels span:nth-child(2){ left:60%; }   /* label 225 */
+    .calendar-labels span:last-child{ right:0; transform:none; }
+    .calendar-text{ margin-top:6px; font-size:13px; }
+
+    .orbit-label{
+      color:#fff;
+      font-size:12px;
+      font-family:sans-serif;
+      text-shadow:0 0 2px #000;
+      pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Right-side dropdown menu -->
+  <div class="menu-container">
+    <ul class="menu-list">
+      <li title="Surface Temperature"><i class="fa-solid fa-fire" data-key="fire"></i></li>
+      <li title="Retrograde Rotation"><i class="fa-solid fa-rotate-left" data-key="rotation"></i></li>
+      <li title="Venus Year"><i class="fa-solid fa-calendar" data-key="calendar"></i></li>
+      <li title="Earth Comparison"><i class="fa-solid fa-earth-americas" data-key="earth"></i></li>
+    </ul>
+    <div id="factBox" class="fact-box"></div>
+  </div>
+
+  <!-- We use an inline module script so the example works without any build tooling. -->
+  <script type="module">
+    /*
+     * Import Three.js and OrbitControls directly from a CDN. This avoids the
+     * need for a build step or local dependency installation.
+     */
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+    // -------------------------------------------------------------------------
+    // Basic scene setup
+    // -------------------------------------------------------------------------
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
+    camera.position.set(0, 6, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    // Label renderer for on-surface markers
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = "absolute";
+    labelRenderer.domElement.style.top = "0";
+    labelRenderer.domElement.style.pointerEvents = "none";
+    document.body.appendChild(labelRenderer.domElement);
+
+    // -------------------------------------------------------------------------
+    // Lighting
+    // -------------------------------------------------------------------------
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 3, 5);
+    scene.add(directionalLight);
+
+    // -------------------------------------------------------------------------
+    // Venus sphere with texture
+    // -------------------------------------------------------------------------
+    const textureLoader = new THREE.TextureLoader();
+    const venusTexture = textureLoader.load("./2k_venus_surface.jpg");
+
+    const sphereGeometry = new THREE.SphereGeometry(2, 64, 64);
+    const sphereMaterial = new THREE.MeshStandardMaterial({ map: venusTexture });
+    const venus = new THREE.Mesh(sphereGeometry, sphereMaterial);
+
+    // -------------------------------------------------------------------------
+    // Position Venus at the center (origin) of the scene
+    // -------------------------------------------------------------------------
+    venus.position.set(0, 0, 0);
+    scene.add(venus);
+
+    // -------------------------------------------------------------------------
+    // Star field background (many small points randomly distributed)
+    // -------------------------------------------------------------------------
+    const starCount = 10000;
+    const starGeometry = new THREE.BufferGeometry();
+    const starVertices = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i++) {
+      starVertices[i] = (Math.random() - 0.5) * 2000; // spread stars in a big cube
+    }
+    starGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(starVertices, 3)
+    );
+    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 1, sizeAttenuation: true });
+    const starField = new THREE.Points(starGeometry, starMaterial);
+    scene.add(starField);
+
+    // -------------------------------------------------------------------------
+    // Camera controls (optional but handy for user interaction)
+    // -------------------------------------------------------------------------
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; // smoother camera movement
+
+    // -------------------------------------------------------------------------
+    // Earth setup (created on demand)
+    // -------------------------------------------------------------------------
+    let earthMesh = null;
+    let rotationPaused = false;
+    // Calendar UI elements reference
+    let calendarContainer = null;
+
+    // ---- Mini solar-system orbit (for calendar view) ----
+    let orbitGroup = null;
+    let miniVenus = null;
+    let miniEarth = null;
+    let orbitActive = false;
+    let orbitDay = 0; // continuous simulated day counter
+
+    const VENUS_ORBIT_R = 1.8;  // even smaller radii
+    const EARTH_ORBIT_R = 3;
+
+    // -------------------------------------------------------------------------
+    // Helper for lat/lon to Vector3 on sphere
+    // -------------------------------------------------------------------------
+    function latLonToVector3(lat, lon, radius) {
+      const latRad = (lat * Math.PI) / 180;
+      const lonRad = (lon * Math.PI) / 180;
+      const x = -radius * Math.cos(latRad) * Math.cos(lonRad);
+      const y = radius * Math.sin(latRad);
+      const z = radius * Math.cos(latRad) * Math.sin(lonRad);
+      return new THREE.Vector3(x, y, z);
+    }
+
+    // -------------------------------------------------------------------------
+    // Fire markers (created on first fire-icon click)
+    // -------------------------------------------------------------------------
+    let fireMarkers = [];
+    function createFireMarkers() {
+      if (fireMarkers.length) return; // already created
+      const markerData = [
+        { lat: 65, lon: 5, label: "Maxwell Montes" },
+        { lat: -8, lon: 198, label: "Atla Regio" }
+      ];
+
+      markerData.forEach((m) => {
+        const div = document.createElement("div");
+        div.className = "icon-marker";
+        div.innerHTML = `<i class='fa-solid fa-fire'></i><span class='marker-text'>${m.label}</span>`;
+
+        const marker = new CSS2DObject(div);
+        marker.position.copy(latLonToVector3(m.lat, m.lon, 2.05));
+        venus.add(marker); // attach so it follows any Venus transformation
+        fireMarkers.push(marker);
+      });
+    }
+
+    function removeFireMarkers() {
+      fireMarkers.forEach((m) => m.parent.remove(m));
+      fireMarkers = [];
+    }
+
+    // -------------------------------------------------------------------------
+    // Earth creation (first Earth-icon click)
+    // -------------------------------------------------------------------------
+    function createEarth() {
+      if (earthMesh) return;
+
+      const loader = new THREE.TextureLoader();
+      const earthTexture = loader.load(
+        "./2k_earth_daymap.jpg",
+        undefined,
+        undefined,
+        () => {
+          // fallback if local missing
+          loader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg", (tex) => {
+            if (earthMesh) {
+              earthMesh.material.map = tex;
+              earthMesh.material.needsUpdate = true;
+            }
+          });
+        }
+      );
+
+      const earthGeom = new THREE.SphereGeometry(2, 64, 64);
+      const earthMat = new THREE.MeshStandardMaterial({ map: earthTexture });
+      earthMesh = new THREE.Mesh(earthGeom, earthMat);
+      earthMesh.position.set(3.5, 0, 0);
+      scene.add(earthMesh);
+
+      // Shift Venus left
+      venus.position.set(-3.5, 0, 0);
+    }
+
+    function removeEarth() {
+      if (earthMesh) {
+        scene.remove(earthMesh);
+        earthMesh.geometry.dispose();
+        earthMesh.material.dispose();
+        earthMesh = null;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Calendar slider UI
+    // -------------------------------------------------------------------------
+    function createCalendarUI() {
+      if (calendarContainer) return;
+
+      calendarContainer = document.createElement("div");
+      calendarContainer.className = "calendar-container";
+
+      calendarContainer.innerHTML = ``;
+
+      document.body.appendChild(calendarContainer);
+
+      createOrbitSystem();
+    }
+
+    function removeCalendarUI() {
+      if (calendarContainer) {
+        calendarContainer.remove();
+        calendarContainer = null;
+      }
+
+      removeOrbitSystem();
+
+      // Return planets to original height
+      venus.position.y = 0;
+      if (earthMesh) earthMesh.position.y = 0;
+
+      // Restore big Venus/Earth visibility
+      venus.visible = true;
+      if (earthMesh) earthMesh.visible = true;
+    }
+
+    function resetState(selectedKey) {
+      // Remove Earth if not selecting earth
+      if (selectedKey !== 'earth') {
+        removeEarth();
+        // center Venus if it was shifted
+        venus.position.set(0, 0, 0);
+      }
+
+      // Remove fire markers and resume rotation if not selecting fire
+      if (selectedKey !== 'fire') {
+        removeFireMarkers();
+        rotationPaused = false;
+      }
+
+      // Remove calendar UI if not selecting calendar
+      if (selectedKey !== 'calendar') {
+        removeCalendarUI();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Facts and menu interactivity
+    // -------------------------------------------------------------------------
+    const facts = {
+      fire: "Average surface temperature: about 465°C (869°F). Hotter than Mercury despite being further from the Sun.",
+      rotation: "Retrograde rotation: Venus spins backwards compared with most planets. One Venus day lasts about 243 Earth days.",
+      calendar: "Orbital period: Venus takes roughly 225 Earth days to orbit the Sun (a Venusian year).",
+      earth: "Size comparison: Venus radius ≈ 6,052 km, about 95% of Earth's radius, earning it the nickname 'Earth's twin'."
+    };
+
+    const factBoxElem = document.getElementById("factBox");
+    document.querySelectorAll('.menu-list i[data-key]').forEach((icon) => {
+      icon.style.cursor = 'pointer';
+      icon.addEventListener('click', () => {
+        const key = icon.dataset.key;
+        factBoxElem.textContent = facts[key] ?? '';
+        factBoxElem.classList.add('show');
+
+        resetState(key);
+
+        if (key === 'earth') {
+          createEarth();
+        } else if (key === 'fire') {
+          createFireMarkers();
+          rotationPaused = true; // stop Venus spin
+        } else if (key === 'calendar') {
+          createCalendarUI();
+        }
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Animation loop
+    // -------------------------------------------------------------------------
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Venus retrograde rotation (unless paused)
+      if (!rotationPaused) {
+        venus.rotation.y -= 0.005;
+      }
+
+      // Earth prograde rotation
+      if (earthMesh) earthMesh.rotation.y += 0.005;
+
+      // advance mini orbits if active (~0.6 days per frame)
+      updateMiniOrbits(0.6);
+
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+    animate();
+
+    // -------------------------------------------------------------------------
+    // Responsive resizing
+    // -------------------------------------------------------------------------
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // -------------------------------------------------------------------------
+    // Mini solar-system orbit (for calendar view)
+    // -------------------------------------------------------------------------
+    function createOrbitSystem() {
+      if (orbitGroup) return;
+
+      orbitGroup = new THREE.Group();
+      scene.add(orbitGroup);
+
+      // Sun
+      const sunTexture = textureLoader.load("./2k_sun.jpg");
+      const sunMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.25, 32, 32),
+        new THREE.MeshBasicMaterial({ map: sunTexture })
+      );
+      orbitGroup.add(sunMesh);
+
+      // Orbit rings
+      const makeRing = (r) => {
+        const seg = 128;
+        const pts = [];
+        for (let i = 0; i <= seg; i++) {
+          const a = (i / seg) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
+        }
+        const geom = new THREE.BufferGeometry().setFromPoints(pts);
+        const mat = new THREE.LineBasicMaterial({ color: 0x888888 });
+        return new THREE.Line(geom, mat);
+      };
+      orbitGroup.add(makeRing(VENUS_ORBIT_R));
+      orbitGroup.add(makeRing(EARTH_ORBIT_R));
+
+      const venusTexMini = textureLoader.load("./2k_venus_surface.jpg");
+      const earthTexMini = textureLoader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg");
+
+      // Mini Venus
+      miniVenus = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 32, 32),
+        new THREE.MeshStandardMaterial({ map: venusTexMini })
+      );
+      orbitGroup.add(miniVenus);
+
+      // Mini Earth
+      miniEarth = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 32, 32),
+        new THREE.MeshBasicMaterial({ map: earthTexMini })
+      );
+      orbitGroup.add(miniEarth);
+
+      // Labels
+      const vDiv = document.createElement('div');
+      vDiv.className = 'orbit-label';
+      vDiv.textContent = 'Venus';
+      const vLabel = new CSS2DObject(vDiv);
+      vLabel.position.set(0, 0.25, 0);
+      miniVenus.add(vLabel);
+
+      const eDiv = document.createElement('div');
+      eDiv.className = 'orbit-label';
+      eDiv.textContent = 'Earth';
+      const eLabel = new CSS2DObject(eDiv);
+      eLabel.position.set(0, 0.25, 0);
+      miniEarth.add(eLabel);
+
+      orbitActive = true;
+
+      // Hide big planets
+      venus.visible = false;
+      if (earthMesh) earthMesh.visible = false;
+    }
+
+    function removeOrbitSystem() {
+      if (!orbitGroup) return;
+      scene.remove(orbitGroup);
+      orbitGroup.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
+      orbitGroup = null;
+      miniVenus = miniEarth = null;
+      orbitActive = false;
+
+      // Show big planets back
+      venus.visible = true;
+      if (earthMesh) earthMesh.visible = true;
+    }
+
+    function updateMiniOrbits(deltaDays) {
+      if (!orbitActive) return;
+
+      orbitDay += deltaDays;
+
+      const thetaV = ((orbitDay % 225) / 225) * Math.PI * 2; // wrap by period
+      const thetaE = ((orbitDay % 365) / 365) * Math.PI * 2;
+
+      miniVenus.position.set(Math.cos(thetaV) * VENUS_ORBIT_R, 0, Math.sin(thetaV) * VENUS_ORBIT_R);
+      miniEarth.position.set(Math.cos(thetaE) * EARTH_ORBIT_R, 0, Math.sin(thetaE) * EARTH_ORBIT_R);
+    }
+  </script>
+
+  <!-- No extra JS needed; interactivity handled in module script -->
+
+  <!--
+    NOTE: If you open this file directly from the filesystem (file://), you may
+    run into CORS issues loading the texture. It's recommended to serve the
+    folder via a simple local web server. For example, from the terminal:
+
+      python3 -m http.server 8000
+
+    Then visit http://localhost:8000 in your browser.
+  -->
+</body>
+</html>
