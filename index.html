@@ -46,10 +46,25 @@
       color:#000;
       border-radius:8px;
       font-size:13px;
-      max-width:300px;
+      max-width:220px;
       box-shadow:0 1px 4px rgba(0,0,0,0.3);
       display:none;
       font-family:'Proxima Nova', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      position:relative;
+    }
+
+    /* triangular tail */
+    .flexi-bubble::before{
+      content:"";
+      position:absolute;
+      left:-8px;            /* protrude to left toward image */
+      top:50%;              /* vertically centered */
+      transform:translateY(-50%);
+      width:0;
+      height:0;
+      border-top:8px solid transparent;
+      border-bottom:8px solid transparent;
+      border-right:8px solid rgba(255,255,255,0.9);
     }
   </style>
   <!-- Import map to let the browser resolve "three" and related addon paths -->
@@ -155,13 +170,37 @@
       width:320px;
       text-align:center;
     }
-    .calendar-slider{ width:100%; margin:0; }
+    .calendar-slider{
+      width:100%; margin:0;
+      -webkit-appearance:none; /* allow custom styling */
+      appearance:none;
+      height:4px;
+      background:#5851FF; /* fallback for unsupported pseudo-track */
+      border-radius:2px;
+      cursor:pointer;
+    }
+    .calendar-slider::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      appearance:none;
+      width:16px; height:16px;
+      border-radius:50%;
+      background:#5851FF;
+      cursor:pointer;
+      border:none;
+      box-shadow:0 0 2px rgba(0,0,0,0.4);
+      margin-top:-6px; /* center thumb relative to 4px track */
+    }
+    .calendar-slider::-webkit-slider-runnable-track{
+      height:4px;
+      background:#5851FF;
+      border-radius:2px;
+    }
     .calendar-labels{ position:relative; font-size:12px; }
-    .calendar-labels span{ position:absolute; top:-4px; transform:translateX(-50%); }
+    .calendar-labels span{ position:absolute; top:4px; transform:translateX(-50%); }
     .calendar-labels span:first-child{ left:0; }
     .calendar-labels span:nth-child(2){ left:60%; }   /* label 225 */
     .calendar-labels span:last-child{ right:0; transform:none; }
-    .calendar-text{ margin-top:6px; font-size:13px; }
+    .calendar-text{ margin-bottom:6px; font-size:13px; }
 
     .orbit-label{
       color:#fff;
@@ -176,10 +215,10 @@
   <!-- Right-side dropdown menu -->
   <div class="menu-container">
     <ul class="menu-list">
-      <li title="Surface Temperature"><i class="fa-solid fa-fire" data-key="fire"></i></li>
-      <li title="Retrograde Rotation"><i class="fa-solid fa-rotate-right" data-key="rotation"></i></li>
-      <li title="Venus Year"><i class="fa-solid fa-calendar" data-key="calendar"></i></li>
+      <li title="Surface Temperature"><i class="fa-solid fa-circle-info" data-key="fire"></i></li>
       <li title="Earth Comparison"><i class="fa-solid fa-earth-americas" data-key="earth"></i></li>
+      <li title="Venus Year"><i class="fa-solid fa-calendar" data-key="calendar"></i></li>
+      <li title="Restart"><i class="fa-solid fa-arrows-rotate" data-key="restart"></i></li>
     </ul>
     <div id="factBox" class="fact-box"></div>
   </div>
@@ -378,6 +417,7 @@
       calendarContainer.className = "calendar-container";
 
       calendarContainer.innerHTML = `
+        <div class="calendar-text">Day of Earth Year</div>
         <input type="range" min="0" max="365" value="0" class="calendar-slider" id="daySlider" />
         <div class="calendar-labels">
           <span>0</span>
@@ -447,21 +487,28 @@
 
     const factBoxElem = document.getElementById("factBox");
     const flexiBubbleElem = document.getElementById("flexiBubble");
+
+    // Default message before any icon is clicked
+    flexiBubbleElem.textContent = "Click an icon to learn more about Venus!";
+    flexiBubbleElem.style.display = 'block';
+
     document.querySelectorAll('.menu-list i[data-key]').forEach((icon) => {
       icon.style.cursor = 'pointer';
       icon.addEventListener('click', () => {
         const key = icon.dataset.key;
-        // Update centered fact box
-        factBoxElem.textContent = facts[key] ?? '';
-        factBoxElem.classList.add('show');
-
         // Update Flexi bubble and ensure it's visible
         flexiBubbleElem.textContent = facts[key] ?? '';
         flexiBubbleElem.style.display = 'block';
 
+        // Ensure the centered fact box stays hidden
+        factBoxElem.classList.remove('show');
+
         resetState(key);
 
-        if (key === 'earth') {
+        if (key === 'restart') {
+          location.reload();
+          return;
+        } else if (key === 'earth') {
           createEarth();
         } else if (key === 'fire') {
           createFireMarkers();
