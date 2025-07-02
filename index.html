@@ -154,6 +154,7 @@
       color: #fff;
       text-shadow: 0 0 2px rgba(0,0,0,0.7);
       white-space: nowrap;
+      font-family:'Proxima Nova', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
 
     .calendar-container{
@@ -275,6 +276,9 @@
     const textureLoader = new THREE.TextureLoader();
     const venusTexture = textureLoader.load("./2k_venus_surface.jpg");
 
+    // Preload Earth texture so Earth sphere can appear instantly when requested
+    const preloadedEarthTexture = textureLoader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg");
+
     const sphereGeometry = new THREE.SphereGeometry(2, 64, 64);
     const sphereMaterial = new THREE.MeshStandardMaterial({ map: venusTexture });
     const venus = new THREE.Mesh(sphereGeometry, sphereMaterial);
@@ -372,30 +376,14 @@
     function createEarth() {
       if (earthMesh) return;
 
-      const loader = new THREE.TextureLoader();
-      const earthTexture = loader.load(
-        "./2k_earth_daymap.jpg",
-        undefined,
-        undefined,
-        () => {
-          // fallback if local missing
-          loader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg", (tex) => {
-            if (earthMesh) {
-              earthMesh.material.map = tex;
-              earthMesh.material.needsUpdate = true;
-            }
-          });
-        }
-      );
+      // Shift Venus left first so positions are set before rendering
+      venus.position.set(-2.5, 0, 0);
 
       const earthGeom = new THREE.SphereGeometry(2, 64, 64);
-      const earthMat = new THREE.MeshStandardMaterial({ map: earthTexture });
+      const earthMat = new THREE.MeshStandardMaterial({ map: preloadedEarthTexture });
       earthMesh = new THREE.Mesh(earthGeom, earthMat);
       earthMesh.position.set(2.5, 0, 0);
       scene.add(earthMesh);
-
-      // Shift Venus left
-      venus.position.set(-2.5, 0, 0);
     }
 
     function removeEarth() {
@@ -475,6 +463,25 @@
       }
     }
 
+    // ---------------------------------------------------------------------
+    // Restart helper – restores scene to initial state without page reload
+    // ---------------------------------------------------------------------
+    function restartScene(){
+      // Remove any dynamic elements
+      removeEarth();
+      removeFireMarkers();
+      removeCalendarUI();
+
+      // Reset Venus
+      venus.position.set(0,0,0);
+      venus.visible = true;
+      rotationPaused = false;
+
+      // Reset Flexi message
+      flexiBubbleElem.textContent = "Click an icon to learn more about Venus!";
+      factBoxElem.classList.remove('show');
+    }
+
     // -------------------------------------------------------------------------
     // Facts and menu interactivity
     // -------------------------------------------------------------------------
@@ -506,7 +513,7 @@
         resetState(key);
 
         if (key === 'restart') {
-          location.reload();
+          restartScene();
           return;
         } else if (key === 'earth') {
           createEarth();
