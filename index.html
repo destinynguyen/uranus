@@ -22,6 +22,35 @@
       user-select: none;
       z-index: 10000;        /* above the canvas */
     }
+
+    /* Flexi mascot wrapper & bubble */
+    .flexi-container{
+      position:fixed;
+      bottom:0px;
+      left:0px;
+      display:flex;
+      align-items:flex-end;
+      z-index:10000;
+      font-family:sans-serif;
+    }
+    .flexi-img{
+      width:120px;
+      pointer-events:none;
+      user-select:none;
+    }
+    .flexi-bubble{
+      margin-left:8px;
+      margin-bottom: 100px;
+      padding:8px 10px;
+      background:rgba(255,255,255,0.9);
+      color:#000;
+      border-radius:8px;
+      font-size:13px;
+      max-width:300px;
+      box-shadow:0 1px 4px rgba(0,0,0,0.3);
+      display:none;
+      font-family:'Proxima Nova', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
   </style>
   <!-- Import map to let the browser resolve "three" and related addon paths -->
   <script type="importmap">
@@ -417,12 +446,18 @@
     };
 
     const factBoxElem = document.getElementById("factBox");
+    const flexiBubbleElem = document.getElementById("flexiBubble");
     document.querySelectorAll('.menu-list i[data-key]').forEach((icon) => {
       icon.style.cursor = 'pointer';
       icon.addEventListener('click', () => {
         const key = icon.dataset.key;
+        // Update centered fact box
         factBoxElem.textContent = facts[key] ?? '';
         factBoxElem.classList.add('show');
+
+        // Update Flexi bubble and ensure it's visible
+        flexiBubbleElem.textContent = facts[key] ?? '';
+        flexiBubbleElem.style.display = 'block';
 
         resetState(key);
 
@@ -598,6 +633,9 @@
 
     Then visit http://localhost:8000 in your browser.
   -->
-  <img src="./Flexi_Telescope.svg" alt="Flexi with telescope" class="corner-img">
+  <div class="flexi-container">
+    <img src="./Flexi_Telescope.svg" alt="Flexi with telescope" class="flexi-img" />
+    <div id="flexiBubble" class="flexi-bubble"></div>
+  </div>
 </body>
 </html>
