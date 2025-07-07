@@ -85,7 +85,8 @@
       .menu-container {
         position: fixed;
         top: 20px;
-        right: 20px;
+        left: 50%;
+        transform: translateX(-50%);
         z-index: 10001;
         font-family: sans-serif;
         display: flex;
@@ -122,7 +123,6 @@
       .menu-list li i:hover,
       .menu-list li i:active {
         background: rgba(0, 0, 0, 0.8);
-        transform: scale(1.1);
       }
 
     .fact-box {
@@ -168,7 +168,7 @@
 
     .calendar-container{
       position: absolute;
-      bottom: 150px;            /* higher above icon row */
+      bottom: 250px;            /* higher above icon row */
       left: 50%;
       transform: translateX(-50%);
       background: rgba(0,0,0,.65);
