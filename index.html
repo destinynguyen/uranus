@@ -27,7 +27,8 @@
     .flexi-container{
       position:fixed;
       bottom:0px;
-      left:100px;
+      left:50%;              /* center horizontally */
+      transform:translateX(-50%);
       display:flex;
       align-items:flex-end;
       z-index:10000;
@@ -83,7 +84,7 @@
     /* Right-side dropdown menu styles */
     .menu-container {
       position: absolute;
-      bottom: 60px; /* distance from bottom */
+      bottom: 320px; /* lifted to sit above Flexi speech bubble */
       left: 50%;
       transform: translateX(-50%);
       z-index: 9999;
@@ -329,6 +330,9 @@
 
     const VENUS_ORBIT_R = 1.6;  // enlarged orbits
     const EARTH_ORBIT_R = 2.6;
+
+    // Raise Venus higher so it doesn't overlap lower UI elements
+    const VENUS_Y = 2;   // tweak as desired
 
     // -------------------------------------------------------------------------
     // Helper for lat/lon to Vector3 on sphere
