@@ -549,12 +549,13 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // Venus retrograde rotation (unless paused)
+      // Venus retrograde rotation (unless paused) - much slower than Earth
+      // Venus takes 243 Earth days to rotate, so it should be about 243x slower
       if (!rotationPaused) {
-        venus.rotation.y -= 0.005;
+        venus.rotation.y -= 0.005 / 243;
       }
 
-      // Earth prograde rotation
+      // Earth prograde rotation - normal speed
       if (earthMesh) earthMesh.rotation.y += 0.005;
 
       // Mini orbits now advance only via the slider; no automatic update.
