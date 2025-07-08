@@ -467,6 +467,7 @@
       if (selectedKey !== 'fire') {
         removeFireMarkers();
         rotationPaused = false;
+        controls.enabled = true; // re-enable camera controls
       }
 
       // Remove calendar UI if not selecting calendar
@@ -488,6 +489,9 @@
       venus.position.set(0,0,0);
       venus.visible = true;
       rotationPaused = false;
+      
+      // Re-enable camera controls
+      controls.enabled = true;
 
       // Reset Flexi message
       flexiBubbleElem.textContent = "Click an icon to learn more about Venus!";
@@ -532,6 +536,7 @@
         } else if (key === 'fire') {
           createFireMarkers();
           rotationPaused = true; // stop Venus spin
+          controls.enabled = false; // disable camera controls
         } else if (key === 'calendar') {
           createCalendarUI();
         }
@@ -554,7 +559,9 @@
 
       // Mini orbits now advance only via the slider; no automatic update.
 
-      controls.update();
+      if (controls.enabled) {
+        controls.update();
+      }
       renderer.render(scene, camera);
       labelRenderer.render(scene, camera);
     }
