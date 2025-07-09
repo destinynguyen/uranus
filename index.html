@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Venus Orbit with Three.js</title>
   <style>
     /* Make the canvas fill the window */
@@ -198,6 +199,71 @@
       text-shadow:0 0 2px #000;
       pointer-events:none;
     }
+
+    /* Mobile-specific responsive styles */
+    @media (max-width: 768px) {
+      /* Larger touch targets for mobile */
+      .menu-list li i {
+        width: 60px !important;
+        height: 60px !important;
+        font-size: 30px !important;
+        padding: 12px !important;
+        line-height: 36px !important;
+      }
+
+      /* Better text sizing for mobile */
+      .flexi-bubble {
+        font-size: 16px !important;
+        max-width: 85vw !important;
+        margin-left: 4px !important;
+      }
+
+      /* Responsive calendar container */
+      .calendar-container {
+        width: 85vw !important;
+        max-width: 350px !important;
+        padding: 16px !important;
+      }
+
+      /* Larger slider thumb for touch */
+      .calendar-slider::-webkit-slider-thumb {
+        width: 24px !important;
+        height: 24px !important;
+        margin-top: -10px !important;
+      }
+
+      /* Adjust menu positioning for mobile */
+      .menu-container {
+        top: 80px !important;
+      }
+
+      /* Better orbit labels for mobile */
+      .orbit-label {
+        font-size: 14px !important;
+      }
+    }
+
+    /* Portrait orientation specific adjustments */
+    @media (max-width: 768px) and (orientation: portrait) {
+      .flexi-container {
+        bottom: 10px !important;
+      }
+      
+      .calendar-container {
+        bottom: 180px !important;
+      }
+    }
+
+    /* Landscape orientation specific adjustments */
+    @media (max-width: 768px) and (orientation: landscape) {
+      .menu-container {
+        top: 40px !important;
+      }
+      
+      .calendar-container {
+        bottom: 120px !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -223,6 +289,20 @@
     import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
     // -------------------------------------------------------------------------
+    // Mobile device detection and optimization settings
+    // -------------------------------------------------------------------------
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
+                     (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
+                     window.innerWidth < 768;
+
+    // Performance settings based on device
+    const performanceSettings = {
+      starCount: isMobile ? 3000 : 10000,
+      sphereDetail: isMobile ? 32 : 64,
+      antialiasing: !isMobile // Disable antialiasing on mobile for better performance
+    };
+
+    // -------------------------------------------------------------------------
     // Basic scene setup
     // -------------------------------------------------------------------------
     const scene = new THREE.Scene();
@@ -235,9 +315,9 @@
     );
     camera.position.set(0, 4, 6);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: performanceSettings.antialiasing });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 2 : 3));
     document.body.appendChild(renderer.domElement);
 
     // Label renderer for on-surface markers
@@ -267,7 +347,7 @@
     // Preload Earth texture so Earth sphere can appear instantly when requested
     const preloadedEarthTexture = textureLoader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg");
 
-    const sphereGeometry = new THREE.SphereGeometry(2, 64, 64);
+    const sphereGeometry = new THREE.SphereGeometry(2, performanceSettings.sphereDetail, performanceSettings.sphereDetail);
     const sphereMaterial = new THREE.MeshStandardMaterial({ map: venusTexture });
     const venus = new THREE.Mesh(sphereGeometry, sphereMaterial);
 
@@ -280,10 +360,9 @@
     // -------------------------------------------------------------------------
     // Star field background (many small points randomly distributed)
     // -------------------------------------------------------------------------
-    const starCount = 10000;
     const starGeometry = new THREE.BufferGeometry();
-    const starVertices = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount * 3; i++) {
+    const starVertices = new Float32Array(performanceSettings.starCount * 3);
+    for (let i = 0; i < performanceSettings.starCount * 3; i++) {
       starVertices[i] = (Math.random() - 0.5) * 2000; // spread stars in a big cube
     }
     starGeometry.setAttribute(
@@ -299,6 +378,18 @@
     // -------------------------------------------------------------------------
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; // smoother camera movement
+    
+    // Mobile-specific control optimizations
+    if (isMobile) {
+      controls.enableDamping = false; // Better touch responsiveness
+      controls.rotateSpeed = 0.8; // Slightly slower rotation for touch
+      controls.zoomSpeed = 1.2; // Easier pinch-to-zoom
+      controls.panSpeed = 0.8; // Smooth touch panning
+      controls.touches = {
+        ONE: THREE.TOUCH.ROTATE,
+        TWO: THREE.TOUCH.DOLLY_PAN
+      };
+    }
 
     // -------------------------------------------------------------------------
     // Earth setup (created on demand)
@@ -347,7 +438,7 @@
       venus.scale.set(0.7, 0.7, 0.7);
       
       // Create a slightly larger sphere to represent the thick atmosphere
-      const cloudGeometry = new THREE.SphereGeometry(1.8, 64, 64);
+      const cloudGeometry = new THREE.SphereGeometry(1.8, performanceSettings.sphereDetail, performanceSettings.sphereDetail);
       const cloudMaterial = new THREE.MeshBasicMaterial({
         color: 0xffd700, // yellowish color for sulfuric acid clouds
         transparent: true,
@@ -381,7 +472,7 @@
       // Shift Venus left first so positions are set before rendering
       venus.position.set(-2.5, 0, 0);
 
-      const earthGeom = new THREE.SphereGeometry(2, 64, 64);
+      const earthGeom = new THREE.SphereGeometry(2, performanceSettings.sphereDetail, performanceSettings.sphereDetail);
       const earthMat = new THREE.MeshStandardMaterial({ map: preloadedEarthTexture });
       earthMesh = new THREE.Mesh(earthGeom, earthMat);
       earthMesh.position.set(2.5, 0, 0);
@@ -583,7 +674,7 @@
       // Sun
       const sunTexture = textureLoader.load("./2k_sun.jpg");
       const sunMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.18, 32, 32),
+        new THREE.SphereGeometry(0.18, Math.max(16, performanceSettings.sphereDetail / 2), Math.max(16, performanceSettings.sphereDetail / 2)),
         new THREE.MeshBasicMaterial({ map: sunTexture })
       );
       orbitGroup.add(sunMesh);
@@ -608,14 +699,14 @@
 
       // Mini Venus
       miniVenus = new THREE.Mesh(
-        new THREE.SphereGeometry(0.09, 32, 32),
+        new THREE.SphereGeometry(0.09, Math.max(16, performanceSettings.sphereDetail / 2), Math.max(16, performanceSettings.sphereDetail / 2)),
         new THREE.MeshStandardMaterial({ map: venusTexMini })
       );
       orbitGroup.add(miniVenus);
 
       // Mini Earth
       miniEarth = new THREE.Mesh(
-        new THREE.SphereGeometry(0.11, 32, 32),
+        new THREE.SphereGeometry(0.11, Math.max(16, performanceSettings.sphereDetail / 2), Math.max(16, performanceSettings.sphereDetail / 2)),
         new THREE.MeshBasicMaterial({ map: earthTexMini })
       );
       orbitGroup.add(miniEarth);
