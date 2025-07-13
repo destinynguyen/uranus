@@ -9,6 +9,7 @@
     body {
       margin: 0;
       overflow: hidden;
+      font-family: 'Proxima Nova', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
     canvas {
       display: block; /* removes scrollbars in some browsers */
@@ -33,7 +34,7 @@
       display:flex;
       align-items:flex-end;
       z-index:10000;
-      font-family:sans-serif;
+      font-family:'Proxima Nova', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
     .flexi-img{
       width:120px;
@@ -519,8 +520,9 @@
       impactContainer = document.createElement('div');
       impactContainer.className = 'impact-container';
       impactContainer.style.position = 'absolute';
-      impactContainer.style.top = '10px';
-      impactContainer.style.right = '10px';
+      impactContainer.style.top = '50%';
+      impactContainer.style.left = '140px';
+      impactContainer.style.transform = 'translateY(-50%)';
       impactContainer.style.background = 'rgba(0,0,0,0.6)';
       impactContainer.style.color = '#fff';
       impactContainer.style.padding = '12px';
@@ -752,7 +754,7 @@
       controls.enabled = true;
 
       // Reset Flexi message
-      flexiBubbleElem.textContent = "Click an icon to learn more about Venus!";
+      flexiBubbleElem.textContent = "Click an icon to learn more about Uranus!";
       factBoxElem.classList.remove('show');
     }
 
@@ -760,17 +762,17 @@
     // Facts and menu interactivity
     // -------------------------------------------------------------------------
     const facts = {
-      fire: "Venus is the hottest planet due to its thick sulfuric acid clouds that trap heat through a strong greenhouse effect.",
-      rotation: "Retrograde rotation: Venus spins backwards compared with most planets. One Venus day lasts about 243 Earth days.",
+      fire: "Uranus is one of the coldest planets in the Solar System; the tops of its clouds dip to about −224 °C because the planet emits very little internal heat compared with its peers.",
+      rotation: "Rotation: Uranus completes a day in about 17 Earth hours and spins retrograde (opposite to most planets) on its tilted axis.",
       calendar: "Orbital period: Uranus takes about 84 Earth years (≈30,660 Earth days) to orbit the Sun, rolling on its side due to its 98° axial tilt.",
-      earth: "Size comparison: Venus radius ≈ 6,052 km, about 95% of Earth's radius, earning it the nickname 'Earth's twin'."
+      earth: "Size comparison: Uranus has a radius of roughly 25,362 km—about four times Earth's diameter—making it an ice giant."
     };
 
     const factBoxElem = document.getElementById("factBox");
     const flexiBubbleElem = document.getElementById("flexiBubble");
 
     // Default message before any icon is clicked
-    flexiBubbleElem.textContent = "Click an icon to learn more about Venus!";
+    flexiBubbleElem.textContent = "Click an icon to learn more about Uranus!";
     flexiBubbleElem.style.display = 'block';
 
     document.querySelectorAll('.menu-list i[data-key]').forEach((icon) => {
