@@ -401,6 +401,39 @@
     // Add realistic rotation rates
     const EARTH_ROT_SPEED = 0.005;   // radians per frame (~24-hour day baseline)
     const URANUS_ROT_SPEED = -EARTH_ROT_SPEED * 24 / 17; // retrograde and ~1.4× faster (~17-hour day)
+
+    // -------------------------------------------------------------------
+    // Impact experiment state (info icon)
+    // -------------------------------------------------------------------
+    let impactContainer = null;      // UI overlay
+    let tiltAnimating = false;       // whether Uranus tilt is animating
+    let tiltStartRad = 0;
+    let tiltEndRad = 0;
+    let tiltAnimStart = 0;
+
+    // Impact visualization
+    let impactorMesh = null;
+    let impactMoving = false;
+    let impactStart = 0;
+    let impactDuration = 2000; // ms
+    let impactStartPos = new THREE.Vector3();
+    let impactTargetPos = new THREE.Vector3();
+    let currentImpRadius = 0; // store active impactor size
+
+    // Post-collision behaviours
+    let impactBehavior = null;      // 'bounce' | 'debris' | 'merge'
+    // Bounce parameters (small asteroid)
+    let bounceMoving = false;
+    let bounceStart = 0;
+    let bounceDuration = 1000;
+    let bounceTargetPos = new THREE.Vector3();
+    // Debris field (comet cluster)
+    let debrisGroup = null;
+    let impactMassFactor = 0; // store selected mass value
+
+    // Utility to format degrees nicely
+    function degString(rad){ return (THREE.MathUtils.radToDeg(rad)).toFixed(1)+"°"; }
+ 
     // Calendar UI elements reference
     let calendarContainer = null;
 
@@ -422,6 +455,9 @@
     // Raise Venus higher so it doesn't overlap lower UI elements
     const VENUS_Y = 2;   // tweak as desired
 
+    // Define planet visual radius constant near top of script where other consts declared
+    const PLANET_RADIUS = 2; // visual radius of Uranus sphere
+
     // -------------------------------------------------------------------------
     // Helper for lat/lon to Vector3 on sphere
     // -------------------------------------------------------------------------
@@ -442,6 +478,7 @@
     let venusCloudLayer = null;
     
     function createVenusCloudLayer() {
+      return; // Disabled: Uranus has no thick yellow cloud layer
       if (venusCloudLayer) return; // already created
       
       // Scale down Venus for better view of cloud effect
@@ -471,6 +508,136 @@
         // Restore Venus to original size
         venus.scale.set(1, 1, 1);
       }
+    }
+
+    // -------------------------------------------------------------
+    // Impact experiment UI and logic
+    // -------------------------------------------------------------
+    function createImpactExperiment(){
+      if(impactContainer) return;
+
+      impactContainer = document.createElement('div');
+      impactContainer.className = 'impact-container';
+      impactContainer.style.position = 'absolute';
+      impactContainer.style.top = '10px';
+      impactContainer.style.right = '10px';
+      impactContainer.style.background = 'rgba(0,0,0,0.6)';
+      impactContainer.style.color = '#fff';
+      impactContainer.style.padding = '12px';
+      impactContainer.style.borderRadius = '8px';
+      impactContainer.style.fontSize = '14px';
+      impactContainer.style.zIndex = '10';
+
+      impactContainer.innerHTML = `
+        <div style="margin-bottom:6px;font-weight:bold;">Experiment: Giant Impact</div>
+        <label>Impactor:</label>
+        <select id="impSel">
+          <option value="1">Small asteroid</option>
+          <option value="5">Comet cluster</option>
+          <option value="15">Mars-sized planet</option>
+          <option value="30">Icy giant</option>
+        </select><br/>
+        <label>Impact speed (km/s):</label>
+        <input type="range" id="spd" min="5" max="30" value="15"/> <span id="spdVal">15</span><br/>
+        <label>Impact angle (°):</label>
+        <input type="range" id="ang" min="0" max="90" value="45"/> <span id="angVal">45</span><br/>
+        <button id="impactBtn" style="margin-top:6px;">Impact!</button>
+        <div style="margin-top:6px;">Axial tilt: <span id="tiltVal">`+degString(venus.rotation.z)+`</span></div>
+      `;
+
+      document.body.appendChild(impactContainer);
+
+      const spd = impactContainer.querySelector('#spd');
+      const ang = impactContainer.querySelector('#ang');
+      spd.addEventListener('input', ()=> impactContainer.querySelector('#spdVal').textContent = spd.value);
+      ang.addEventListener('input', ()=> impactContainer.querySelector('#angVal').textContent = ang.value);
+
+      impactContainer.querySelector('#impactBtn').addEventListener('click', ()=>{
+        const massFactor = parseFloat(impactContainer.querySelector('#impSel').value);
+        const speed = parseFloat(spd.value);
+        const angleDeg = parseFloat(ang.value);
+
+        impactMassFactor = massFactor; // keep for later physics outcome
+
+        // Decide behaviour based on impactor type
+        if(massFactor === 1){
+          impactBehavior = 'bounce';            // small asteroid
+        }else if(massFactor === 5 || massFactor === 30){
+          impactBehavior = 'debris';            // comet cluster or icy giant break apart
+        }else{ // 15
+          impactBehavior = 'merge';             // Mars-sized planet merges
+        }
+
+        // Simple heuristic for tilt change
+        const deltaTiltDeg = Math.min(60, massFactor * (speed/30) * (angleDeg/90) * 20);
+        const currentTiltDeg = THREE.MathUtils.radToDeg(venus.rotation.z);
+        const newTiltDeg = Math.min(180, currentTiltDeg + deltaTiltDeg);
+
+        tiltStartRad = venus.rotation.z;
+        tiltEndRad = THREE.MathUtils.degToRad(newTiltDeg);
+        tiltAnimStart = performance.now();
+        tiltAnimating = true;
+
+        // -----------------------------
+        // Create visual impactor
+        // -----------------------------
+        if(impactorMesh){ // remove old one
+          scene.remove(impactorMesh);
+          impactorMesh.geometry.dispose();
+          impactorMesh.material.dispose();
+          impactorMesh = null;
+        }
+
+        // radius mapping (rough)
+        let impRadius = 0.15; // default asteroid
+        if(massFactor>=30) impRadius = 1.0; // icy giant
+        else if(massFactor>=15) impRadius = 0.6; // mars-sized
+        else if(massFactor>=5) impRadius = 0.3; // comet cluster
+
+        const colors = {
+          1: 0x888888,
+          5: 0xffffff,
+          15: 0xbb8844,
+          30: 0x66ccff
+        };
+        const colorHex = colors[massFactor] || 0x888888;
+
+        const impGeom = new THREE.SphereGeometry(impRadius, 16, 16);
+        const impMat = new THREE.MeshStandardMaterial({color: colorHex});
+        impactorMesh = new THREE.Mesh(impGeom, impMat);
+
+        // Start position far along +X direction relative to Uranus
+        impactStartPos.set(10, 0, 0);
+        impactTargetPos.copy(venus.position);
+        impactorMesh.position.copy(impactStartPos);
+        scene.add(impactorMesh);
+
+        currentImpRadius = impRadius; // store for collision distance check
+
+        impactStart = performance.now();
+        impactMoving = true;
+        bounceMoving = false;
+      });
+    }
+
+    function removeImpactExperiment(){
+      if(impactContainer){
+        impactContainer.remove();
+        impactContainer = null;
+      }
+      // Clean debris and impactor
+      if(debrisGroup){
+        debrisGroup.traverse(obj=>{ if(obj.geometry) obj.geometry.dispose(); if(obj.material) obj.material.dispose(); });
+        scene.remove(debrisGroup);
+        debrisGroup = null;
+      }
+      if(impactorMesh){
+        scene.remove(impactorMesh);
+        impactorMesh.geometry.dispose();
+        impactorMesh.material.dispose();
+        impactorMesh = null;
+      }
+      impactMoving = bounceMoving = false;
     }
 
     // -------------------------------------------------------------------------
@@ -557,6 +724,7 @@
       // Remove cloud layer if not selecting fire/info
       if (selectedKey !== 'fire') {
         removeVenusCloudLayer();
+        removeImpactExperiment();
       }
 
       // Remove calendar UI if not selecting calendar
@@ -573,6 +741,7 @@
       removeEarth();
       removeVenusCloudLayer();
       removeCalendarUI();
+      removeImpactExperiment();
 
       // Reset Venus
       venus.position.set(0,0,0);
@@ -623,7 +792,7 @@
         } else if (key === 'earth') {
           createEarth();
         } else if (key === 'fire') {
-          createVenusCloudLayer();
+          createImpactExperiment();
         } else if (key === 'calendar') {
           createCalendarUI();
         }
@@ -657,6 +826,141 @@
       }
       renderer.render(scene, camera);
       labelRenderer.render(scene, camera);
+
+      // Tilt animation after impact
+      if(tiltAnimating){
+        const t = (performance.now() - tiltAnimStart)/2000; // 2-second anim
+        if(t>=1){
+          venus.rotation.z = tiltEndRad;
+          tiltAnimating = false;
+        }else{
+          venus.rotation.z = THREE.MathUtils.lerp(tiltStartRad, tiltEndRad, t);
+        }
+        // update UI value if present
+        if(impactContainer){
+          const tv = impactContainer.querySelector('#tiltVal');
+          if(tv) tv.textContent = degString(venus.rotation.z);
+        }
+      }
+
+      // Move impactor towards Uranus
+      if(impactMoving && impactorMesh){
+        // Update position along path
+        const elapsed = (performance.now() - impactStart);
+        const t = Math.min(1, elapsed / impactDuration);
+        impactorMesh.position.lerpVectors(impactStartPos, impactTargetPos, t);
+
+        const distToCenter = impactorMesh.position.distanceTo(impactTargetPos);
+        const contactDist = PLANET_RADIUS + currentImpRadius;
+        if(distToCenter <= contactDist || t>=1){
+
+          // Handle physics outcome
+          if(impactBehavior === 'bounce'){
+            // Prepare outward bounce proportional to speed
+            const dir = new THREE.Vector3().subVectors(impactStartPos, impactTargetPos).normalize();
+            const speedVal = parseFloat(impactContainer ? impactContainer.querySelector('#spd').value : 15);
+            const dist = 2 + (speedVal/30)*6;
+            bounceTargetPos.copy(impactTargetPos).addScaledVector(dir, dist);
+            bounceDuration = 500 + (dist/8)*1000;
+            bounceStart = performance.now();
+            bounceMoving = true;
+          }else if(impactBehavior === 'debris'){
+            // Create debris field
+            if(debrisGroup) scene.remove(debrisGroup);
+            debrisGroup = new THREE.Group();
+            const debrisCount = (impactMassFactor===30)? 300 : 100;
+
+            if(impactMassFactor===30){
+              // Spherical debris cloud approximating former icy giant
+              const cloudR = currentImpRadius * 1.2;
+              for(let i=0;i<debrisCount;i++){
+                // random point in sphere using spherical coordinates
+                const u = Math.random();
+                const v = Math.random();
+                const theta = 2 * Math.PI * u;
+                const phi = Math.acos(2*v - 1);
+                const rRand = cloudR * Math.cbrt(Math.random());
+                const x = rRand * Math.sin(phi) * Math.cos(theta);
+                const y = rRand * Math.sin(phi) * Math.sin(theta);
+                const z = rRand * Math.cos(phi);
+
+                const dGeom = new THREE.SphereGeometry(0.025, 8, 8);
+                const dMat = new THREE.MeshBasicMaterial({color:0x99ccff});
+                const piece = new THREE.Mesh(dGeom, dMat);
+                piece.position.set(x, y, z);
+                // store outward velocity for simple expansion
+                piece.userData.vel = new THREE.Vector3(x,y,z).normalize().multiplyScalar(0.02 + 0.04*Math.random());
+                debrisGroup.add(piece);
+              }
+              debrisGroup.userData.type = 'sphere';
+            }else{
+              // Ring debris (comet cluster case)
+              const ringR = 2.5;
+              for(let i=0;i<debrisCount;i++){
+                const theta = Math.random()*Math.PI*2;
+                const yOff = (Math.random()-0.5)*0.2;
+                const dGeom = new THREE.SphereGeometry(0.02,8,8);
+                const dMat = new THREE.MeshBasicMaterial({color:0x99ccff});
+                const piece = new THREE.Mesh(dGeom,dMat);
+                piece.position.set(Math.cos(theta)*ringR, yOff, Math.sin(theta)*ringR);
+                debrisGroup.add(piece);
+              }
+              debrisGroup.userData.type = 'ring';
+            }
+
+            debrisGroup.position.copy(impactorMesh.position);
+            scene.add(debrisGroup);
+
+            // remove impactor
+            scene.remove(impactorMesh);
+            impactorMesh.geometry.dispose();
+            impactorMesh.material.dispose();
+            impactorMesh = null;
+          }else{ // merge
+            // Simple merge: enlarge Uranus slightly proportional to massFactor
+            const scaleUp = 1 + impactMassFactor*0.01; // small visual bump
+            venus.scale.set(scaleUp, scaleUp, scaleUp);
+            // remove impactor mesh
+            scene.remove(impactorMesh);
+            impactorMesh.geometry.dispose();
+            impactorMesh.material.dispose();
+            impactorMesh = null;
+          }
+
+          impactMoving = false;
+        }else{
+          impactorMesh.position.lerpVectors(impactStartPos, impactTargetPos, t);
+        }
+      }
+
+      // Bounce outward animation
+      if(bounceMoving && impactorMesh){
+        const tB = (performance.now() - bounceStart)/bounceDuration;
+        if(tB>=1){
+          scene.remove(impactorMesh);
+          impactorMesh.geometry.dispose();
+          impactorMesh.material.dispose();
+          impactorMesh = null;
+          bounceMoving = false;
+        }else{
+          impactorMesh.position.lerpVectors(impactTargetPos, bounceTargetPos, tB);
+        }
+      }
+
+      // Debris animation
+      if(debrisGroup){
+        if(debrisGroup.userData.type === 'ring'){
+          debrisGroup.rotation.y += 0.002; // rotate ring
+        }else if(debrisGroup.userData.type === 'sphere'){
+          // expand cloud pieces outward
+          debrisGroup.children.forEach((piece)=>{
+            if(piece.userData && piece.userData.vel){
+              piece.position.add(piece.userData.vel);
+              // optional fade out or slow down; skipped for simplicity
+            }
+          });
+        }
+      }
     }
     animate();
 
