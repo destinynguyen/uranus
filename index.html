@@ -342,7 +342,7 @@
     // Venus sphere with texture
     // -------------------------------------------------------------------------
     const textureLoader = new THREE.TextureLoader();
-    const venusTexture = textureLoader.load("./2k_venus_surface.jpg");
+    const venusTexture = textureLoader.load("./2k_uranus.jpg");
 
     // Preload Earth texture so Earth sphere can appear instantly when requested
     const preloadedEarthTexture = textureLoader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg");
@@ -355,6 +355,8 @@
     // Position Venus at the center (origin) of the scene
     // -------------------------------------------------------------------------
     venus.position.set(0, 0, 0);
+    // Tilt Uranus ~98° so it appears to roll on its side
+    venus.rotation.z = THREE.MathUtils.degToRad(98);
     scene.add(venus);
 
     // -------------------------------------------------------------------------
@@ -396,17 +398,25 @@
     // -------------------------------------------------------------------------
     let earthMesh = null;
     let rotationPaused = false;
+    // Add realistic rotation rates
+    const EARTH_ROT_SPEED = 0.005;   // radians per frame (~24-hour day baseline)
+    const URANUS_ROT_SPEED = -EARTH_ROT_SPEED * 24 / 17; // retrograde and ~1.4× faster (~17-hour day)
     // Calendar UI elements reference
     let calendarContainer = null;
 
     // ---- Mini solar-system orbit (for calendar view) ----
     let orbitGroup = null;
-    let miniVenus = null;
+    let miniUranus = null;
     let miniEarth = null;
     let orbitActive = false;
     let orbitDay = 0; // continuous simulated day counter
 
-    const VENUS_ORBIT_R = 1.6;  // enlarged orbits
+    // ---------------------------------------------
+    // Uranus orbital characteristics (relative)
+    // ---------------------------------------------
+    const URANUS_ORBIT_R = 3.5;             // scaled-down visual radius
+    const URANUS_ORBIT_DAYS = 84 * 365;     // ~84 Earth years in Earth-days
+
     const EARTH_ORBIT_R = 2.6;
 
     // Raise Venus higher so it doesn't overlap lower UI elements
@@ -472,7 +482,7 @@
       // Shift Venus left first so positions are set before rendering
       venus.position.set(-2.5, 0, 0);
 
-      const earthGeom = new THREE.SphereGeometry(2, performanceSettings.sphereDetail, performanceSettings.sphereDetail);
+      const earthGeom = new THREE.SphereGeometry(0.5, performanceSettings.sphereDetail, performanceSettings.sphereDetail);
       const earthMat = new THREE.MeshStandardMaterial({ map: preloadedEarthTexture });
       earthMesh = new THREE.Mesh(earthGeom, earthMat);
       earthMesh.position.set(2.5, 0, 0);
@@ -498,12 +508,12 @@
       calendarContainer.className = "calendar-container";
 
       calendarContainer.innerHTML = `
-        <div class="calendar-text">Day of Earth Year</div>
-        <input type="range" min="0" max="365" value="0" class="calendar-slider" id="daySlider" />
+        <div class="calendar-text">Explore Uranus&#39;s 84-year orbit (0 – 30 660 Earth days)</div>
+        <input type="range" min="0" max="30660" value="0" class="calendar-slider" id="daySlider" />
         <div class="calendar-labels">
           <span>0</span>
-          <span style="left: 60%">225</span>
-          <span style="right: 0">365</span>
+          <span style="left: 50%">15 330</span>
+          <span style="right: 0">30 660</span>
         </div>
       `;
 
@@ -583,7 +593,7 @@
     const facts = {
       fire: "Venus is the hottest planet due to its thick sulfuric acid clouds that trap heat through a strong greenhouse effect.",
       rotation: "Retrograde rotation: Venus spins backwards compared with most planets. One Venus day lasts about 243 Earth days.",
-      calendar: "Orbital period: Venus takes roughly 225 Earth days to orbit the Sun (a Venusian year).",
+      calendar: "Orbital period: Uranus takes about 84 Earth years (≈30,660 Earth days) to orbit the Sun, rolling on its side due to its 98° axial tilt.",
       earth: "Size comparison: Venus radius ≈ 6,052 km, about 95% of Earth's radius, earning it the nickname 'Earth's twin'."
     };
 
@@ -626,10 +636,9 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // Venus retrograde rotation (unless paused) - much slower than Earth
-      // Venus takes 243 Earth days to rotate, so it should be about 243x slower
+      // Uranus retrograde rotation (~17-hour day)
       if (!rotationPaused) {
-        venus.rotation.y -= 0.005 / 243;
+        venus.rotation.y += URANUS_ROT_SPEED;
       }
 
       // Cloud layer rotation - slightly different speed to create atmospheric effect
@@ -638,8 +647,8 @@
         venusCloudLayer.position.copy(venus.position); // follow Venus position
       }
 
-      // Earth prograde rotation - normal speed
-      if (earthMesh) earthMesh.rotation.y += 0.005;
+      // Earth prograde rotation (~24-hour day)
+      if (earthMesh) earthMesh.rotation.y += EARTH_ROT_SPEED;
 
       // Mini orbits now advance only via the slider; no automatic update.
 
@@ -691,18 +700,19 @@
         const mat = new THREE.LineBasicMaterial({ color: 0x888888 });
         return new THREE.Line(geom, mat);
       };
-      orbitGroup.add(makeRing(VENUS_ORBIT_R));
+      orbitGroup.add(makeRing(URANUS_ORBIT_R));
       orbitGroup.add(makeRing(EARTH_ORBIT_R));
 
-      const venusTexMini = textureLoader.load("./2k_venus_surface.jpg");
+      const uranusTexMini = textureLoader.load("./2k_uranus.jpg");
       const earthTexMini = textureLoader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg");
 
-      // Mini Venus
-      miniVenus = new THREE.Mesh(
-        new THREE.SphereGeometry(0.09, Math.max(16, performanceSettings.sphereDetail / 2), Math.max(16, performanceSettings.sphereDetail / 2)),
-        new THREE.MeshStandardMaterial({ map: venusTexMini })
+      // Mini Uranus
+      miniUranus = new THREE.Mesh(
+        new THREE.SphereGeometry(0.44, Math.max(16, performanceSettings.sphereDetail / 2), Math.max(16, performanceSettings.sphereDetail / 2)),
+        new THREE.MeshStandardMaterial({ map: uranusTexMini })
       );
-      orbitGroup.add(miniVenus);
+      miniUranus.rotation.z = THREE.MathUtils.degToRad(98); // axial tilt
+      orbitGroup.add(miniUranus);
 
       // Mini Earth
       miniEarth = new THREE.Mesh(
@@ -714,10 +724,10 @@
       // Labels
       const vDiv = document.createElement('div');
       vDiv.className = 'orbit-label';
-      vDiv.textContent = 'Venus';
+      vDiv.textContent = 'Uranus';
       const vLabel = new CSS2DObject(vDiv);
-      vLabel.position.set(0, 0.25, 0);
-      miniVenus.add(vLabel);
+      vLabel.position.set(0, 0.55, 0);
+      miniUranus.add(vLabel);
 
       const eDiv = document.createElement('div');
       eDiv.className = 'orbit-label';
@@ -747,7 +757,7 @@
       });
       scene.remove(orbitGroup);
       orbitGroup = null;
-      miniVenus = miniEarth = null;
+      miniUranus = miniEarth = null;
       orbitActive = false;
 
       // Show big planets back
@@ -760,20 +770,20 @@
 
       orbitDay += deltaDays;
 
-      const thetaV = ((orbitDay % 225) / 225) * Math.PI * 2; // wrap by period
+      const thetaU = ((orbitDay % URANUS_ORBIT_DAYS) / URANUS_ORBIT_DAYS) * Math.PI * 2; // wrap by Uranus period
       const thetaE = ((orbitDay % 365) / 365) * Math.PI * 2;
 
-      miniVenus.position.set(Math.cos(thetaV) * VENUS_ORBIT_R, 0, Math.sin(thetaV) * VENUS_ORBIT_R);
+      miniUranus.position.set(Math.cos(thetaU) * URANUS_ORBIT_R, 0, Math.sin(thetaU) * URANUS_ORBIT_R);
       miniEarth.position.set(Math.cos(thetaE) * EARTH_ORBIT_R, 0, Math.sin(thetaE) * EARTH_ORBIT_R);
     }
 
     // Set orbit day directly (used by slider)
     function setOrbitDay(dayVal){
       orbitDay = dayVal;
-      const thetaV = ((orbitDay % 225) / 225) * Math.PI * 2;
+      const thetaU = ((orbitDay % URANUS_ORBIT_DAYS) / URANUS_ORBIT_DAYS) * Math.PI * 2;
       const thetaE = ((orbitDay % 365) / 365) * Math.PI * 2;
-      if(miniVenus&&miniEarth){
-        miniVenus.position.set(Math.cos(thetaV)*VENUS_ORBIT_R,0,Math.sin(thetaV)*VENUS_ORBIT_R);
+      if(miniUranus&&miniEarth){
+        miniUranus.position.set(Math.cos(thetaU)*URANUS_ORBIT_R,0,Math.sin(thetaU)*URANUS_ORBIT_R);
         miniEarth.position.set(Math.cos(thetaE)*EARTH_ORBIT_R,0,Math.sin(thetaE)*EARTH_ORBIT_R);
       }
     }
