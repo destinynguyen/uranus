@@ -609,6 +609,10 @@
       impactContainer.querySelector('#impactBtn').addEventListener('click', (e)=>{
         const impactBtn = e.currentTarget;
         if(impactBtn.dataset.mode === 'restart'){
+          // reset planet tilt to initial 98°
+          venus.rotation.z = THREE.MathUtils.degToRad(98);
+          tiltAnimating = false;
+          wobbleActive = false;
           removeImpactExperiment();
           createImpactExperiment();
           return;
