@@ -559,6 +559,8 @@
         .impact-container button{width:100%;padding:6px 0;margin-top:10px;border:none;border-radius:6px;background:#5851FF;color:#fff;font-size:14px;cursor:pointer;transition:background .2s;}
         .impact-container button:hover{background:#6a63ff;}
         .impact-container .tilt-display{margin-top:10px;font-size:13px;text-align:center;}
+        .impact-container button.secondary{background:#444;border:1px solid #666;margin-top:6px;}
+        .impact-container button.secondary:hover{background:#555;}
         `;
         document.head.appendChild(styleTag);
       }
@@ -601,7 +603,14 @@
       spd.addEventListener('input', ()=> impactContainer.querySelector('#spdVal').textContent = spd.value);
       ang.addEventListener('input', ()=> impactContainer.querySelector('#angVal').textContent = ang.value);
 
-      impactContainer.querySelector('#impactBtn').addEventListener('click', ()=>{
+      // Button will toggle between "Impact!" and "Restart"
+      impactContainer.querySelector('#impactBtn').addEventListener('click', (e)=>{
+        const impactBtn = e.currentTarget;
+        if(impactBtn.dataset.mode === 'restart'){
+          removeImpactExperiment();
+          createImpactExperiment();
+          return;
+        }
         const massFactor = parseFloat(impactContainer.querySelector('#impSel').value);
         const speed = parseFloat(spd.value);
         const angleDeg = parseFloat(ang.value);
@@ -694,6 +703,9 @@
           wobbleStart = performance.now();
           wobbleAmp = THREE.MathUtils.degToRad(6); // stronger wobble for Mars-sized impact
         }
+        impactBtn.dataset.mode = 'restart';
+        impactBtn.textContent = 'Restart';
+        impactBtn.classList.add('secondary');
       });
     }
 
@@ -852,7 +864,7 @@
     const facts = {
       fire: "A colossal collision early in Uranus’s history likely smashed the planet onto its side—leaving it with a 98° axial tilt while barely changing its frigid atmosphere.",
       rotation: "Rotation: Uranus completes a day in about 17 Earth hours and spins retrograde (opposite to most planets) on its tilted axis.",
-      calendar: "Orbital period: Uranus takes about 84 Earth years (≈30,660 Earth days) to orbit the Sun, rolling on its side due to its 98° axial tilt.",
+      calendar: "Orbital period: Uranus takes about 84 Earth years (≈30,660 Earth days) to orbit the Sun.",
       earth: "Size comparison: Uranus has a radius of roughly 25,362 km—about four times Earth's diameter—making it an ice giant."
     };
 
