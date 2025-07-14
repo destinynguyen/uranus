@@ -545,6 +545,23 @@
     // -------------------------------------------------------------
     function createImpactExperiment(){
       if(impactContainer) return;
+
+      // Inject styles once
+      if(!document.getElementById('impactStyles')){
+        const styleTag=document.createElement('style');
+        styleTag.id='impactStyles';
+        styleTag.textContent=`
+        .impact-container{width:260px;background:rgba(20,20,30,.8);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.15);box-shadow:0 4px 10px rgba(0,0,0,.5);border-radius:10px;font-family:'Proxima Nova','Helvetica Neue',Helvetica,Arial,sans-serif;color:#fff;}
+        .impact-container .impact-title{font-size:16px;font-weight:600;margin-bottom:8px;text-align:center;}
+        .impact-container label{display:block;font-size:13px;margin-top:8px;margin-bottom:2px;}
+        .impact-container select,.impact-container input[type=range]{width:100%;}
+        .impact-container input[type=range]{margin-top:2px;}
+        .impact-container button{width:100%;padding:6px 0;margin-top:10px;border:none;border-radius:6px;background:#5851FF;color:#fff;font-size:14px;cursor:pointer;transition:background .2s;}
+        .impact-container button:hover{background:#6a63ff;}
+        .impact-container .tilt-display{margin-top:10px;font-size:13px;text-align:center;}
+        `;
+        document.head.appendChild(styleTag);
+      }
       ensureAxis();
 
       impactContainer = document.createElement('div');
@@ -561,20 +578,20 @@
       impactContainer.style.zIndex = '10';
 
       impactContainer.innerHTML = `
-        <div style="margin-bottom:6px;font-weight:bold;">Experiment: Giant Impact</div>
+        <div class="impact-title">Experiment: Giant Impact</div>
         <label>Impactor:</label>
         <select id="impSel">
           <option value="1">Small asteroid</option>
           <option value="5">Comet cluster</option>
           <option value="15">Mars-sized planet</option>
           <option value="30">Icy giant</option>
-        </select><br/>
-        <label>Impact speed (km/s):</label>
-        <input type="range" id="spd" min="5" max="30" value="15"/> <span id="spdVal">15</span><br/>
-        <label>Impact angle (°):</label>
-        <input type="range" id="ang" min="0" max="90" value="45"/> <span id="angVal">45</span><br/>
-        <button id="impactBtn" style="margin-top:6px;">Impact!</button>
-        <div style="margin-top:6px;">Axial tilt: <span id="tiltVal">`+degString(venus.rotation.z)+`</span></div>
+        </select>
+        <label>Impact speed (km/s)</label>
+        <input type="range" id="spd" min="5" max="30" value="15"/> <span id="spdVal">15</span>
+        <label>Impact angle (°)</label>
+        <input type="range" id="ang" min="0" max="90" value="45"/> <span id="angVal">45</span>
+        <button id="impactBtn">Impact!</button>
+        <div class="tilt-display">Axial tilt: <span id="tiltVal">`+degString(venus.rotation.z)+`</span></div>
       `;
 
       document.body.appendChild(impactContainer);
@@ -698,7 +715,15 @@
         impactorMesh = null;
       }
       if(axisGroup){
-        axisGroup.traverse(obj=>{ if(obj.geometry) obj.geometry.dispose(); if(obj.material) obj.material.dispose(); });
+        axisGroup.traverse(obj=>{
+          if(obj instanceof CSS2DObject){
+            if(obj.element && obj.element.parentNode){
+              obj.element.parentNode.removeChild(obj.element);
+            }
+          }
+          if(obj.geometry) obj.geometry.dispose();
+          if(obj.material) obj.material.dispose();
+        });
         venus.remove(axisGroup);
         axisGroup = null;
       }
@@ -825,7 +850,7 @@
     // Facts and menu interactivity
     // -------------------------------------------------------------------------
     const facts = {
-      fire: "Uranus is one of the coldest planets in the Solar System; the tops of its clouds dip to about −224 °C because the planet emits very little internal heat compared with its peers.",
+      fire: "A colossal collision early in Uranus’s history likely smashed the planet onto its side—leaving it with a 98° axial tilt while barely changing its frigid atmosphere.",
       rotation: "Rotation: Uranus completes a day in about 17 Earth hours and spins retrograde (opposite to most planets) on its tilted axis.",
       calendar: "Orbital period: Uranus takes about 84 Earth years (≈30,660 Earth days) to orbit the Sun, rolling on its side due to its 98° axial tilt.",
       earth: "Size comparison: Uranus has a radius of roughly 25,362 km—about four times Earth's diameter—making it an ice giant."
