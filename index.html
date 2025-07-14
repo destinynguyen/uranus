@@ -432,6 +432,35 @@
     let debrisGroup = null;
     let impactMassFactor = 0; // store selected mass value
 
+    // Wobble (precession) state for small asteroid impacts
+    let wobbleActive = false;
+    let wobbleStart = 0;
+    let wobbleAmp = 0; // radians
+
+    // Axis visualization for Uranus tilt
+    let axisGroup = null;
+    function ensureAxis(){
+      if(axisGroup) return;
+      const axisLen = 5;
+      axisGroup = new THREE.Group();
+      // main yellow line
+      const lineGeom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0,-axisLen/2,0),
+        new THREE.Vector3(0, axisLen/2,0)
+      ]);
+      const lineMat = new THREE.LineBasicMaterial({color:0xffff00});
+      axisGroup.add(new THREE.Line(lineGeom, lineMat));
+      // arrow heads removed for cleaner axis visual
+      // labels
+      const labelStyle='color:#fff;font-size:12px;text-shadow:0 0 2px #000;';
+      const nDiv=document.createElement('div');nDiv.style=labelStyle;nDiv.textContent='N';
+      const sDiv=document.createElement('div');sDiv.style=labelStyle;sDiv.textContent='S';
+      const nLabel=new CSS2DObject(nDiv);nLabel.position.set(0, axisLen/2 + 0.9,0);
+      const sLabel=new CSS2DObject(sDiv);sLabel.position.set(0, -axisLen/2 - 0.9,0);
+      axisGroup.add(nLabel);axisGroup.add(sLabel);
+      venus.add(axisGroup);
+    }
+
     // Utility to format degrees nicely
     function degString(rad){ return (THREE.MathUtils.radToDeg(rad)).toFixed(1)+"°"; }
  
@@ -516,6 +545,7 @@
     // -------------------------------------------------------------
     function createImpactExperiment(){
       if(impactContainer) return;
+      ensureAxis();
 
       impactContainer = document.createElement('div');
       impactContainer.className = 'impact-container';
@@ -571,8 +601,17 @@
         }
 
         // Simple heuristic for tilt change
-        const deltaTiltDeg = Math.min(60, massFactor * (speed/30) * (angleDeg/90) * 20);
         const currentTiltDeg = THREE.MathUtils.radToDeg(venus.rotation.z);
+        let deltaTiltDeg = Math.min(60, massFactor * (speed/30) * (angleDeg/90) * 20);
+        if(massFactor===1){
+          deltaTiltDeg = Math.min(deltaTiltDeg, 5); // asteroid <=5°
+        }
+        if(massFactor===5){
+          deltaTiltDeg = Math.max(20, Math.min(deltaTiltDeg, 40)); // comet cluster modest 20–40°
+        } else if(massFactor===15){
+          // Mars-sized impact pushes toward 98° total tilt
+          deltaTiltDeg = Math.max(0, 98 - currentTiltDeg);
+        }
         const newTiltDeg = Math.min(180, currentTiltDeg + deltaTiltDeg);
 
         tiltStartRad = venus.rotation.z;
@@ -593,14 +632,15 @@
         // radius mapping (rough)
         let impRadius = 0.15; // default asteroid
         if(massFactor>=30) impRadius = 1.0; // icy giant
-        else if(massFactor>=15) impRadius = 0.6; // mars-sized
+        else if(massFactor>=15) impRadius = 0.8; // mars-sized larger for visibility
         else if(massFactor>=5) impRadius = 0.3; // comet cluster
 
+        // Update color map
         const colors = {
-          1: 0x888888,
-          5: 0xffffff,
-          15: 0xbb8844,
-          30: 0x66ccff
+          1: 0x888888,   // asteroid gray
+          5: 0xffffff,   // comet icy white
+          15: 0xff5533,  // Mars-sized: bright reddish
+          30: 0x66ccff   // icy giant blue
         };
         const colorHex = colors[massFactor] || 0x888888;
 
@@ -609,7 +649,11 @@
         impactorMesh = new THREE.Mesh(impGeom, impMat);
 
         // Start position far along +X direction relative to Uranus
-        impactStartPos.set(10, 0, 0);
+        if(massFactor===15){
+          impactStartPos.set(4, 1.5, 4); // Inside camera frustum front-right
+        }else{
+          impactStartPos.set(10, 0, 0);
+        }
         impactTargetPos.copy(venus.position);
         impactorMesh.position.copy(impactStartPos);
         scene.add(impactorMesh);
@@ -619,6 +663,20 @@
         impactStart = performance.now();
         impactMoving = true;
         bounceMoving = false;
+
+        if(impactBehavior==='bounce'){
+          wobbleActive = true;
+          wobbleStart = performance.now();
+          wobbleAmp = THREE.MathUtils.degToRad(2); // 2° wiggle
+        } else if(massFactor===5){
+          wobbleActive = true;
+          wobbleStart = performance.now();
+          wobbleAmp = THREE.MathUtils.degToRad(4); // 4° wobble for comet cluster
+        } else if(massFactor===15){
+          wobbleActive = true;
+          wobbleStart = performance.now();
+          wobbleAmp = THREE.MathUtils.degToRad(6); // stronger wobble for Mars-sized impact
+        }
       });
     }
 
@@ -638,6 +696,11 @@
         impactorMesh.geometry.dispose();
         impactorMesh.material.dispose();
         impactorMesh = null;
+      }
+      if(axisGroup){
+        axisGroup.traverse(obj=>{ if(obj.geometry) obj.geometry.dispose(); if(obj.material) obj.material.dispose(); });
+        venus.remove(axisGroup);
+        axisGroup = null;
       }
       impactMoving = bounceMoving = false;
     }
@@ -842,6 +905,18 @@
         if(impactContainer){
           const tv = impactContainer.querySelector('#tiltVal');
           if(tv) tv.textContent = degString(venus.rotation.z);
+        }
+      }
+
+      // Post-impact wobble for small asteroid
+      if(wobbleActive && !tiltAnimating){
+        const tW = performance.now() - wobbleStart;
+        const decay = Math.exp(-tW/4000); // 4-s decay
+        const wobbleAngle = wobbleAmp * decay * Math.sin(tW*0.01);
+        venus.rotation.z = tiltEndRad + wobbleAngle;
+        if(decay < 0.02){
+          wobbleActive = false;
+          venus.rotation.z = tiltEndRad; // settle
         }
       }
 
