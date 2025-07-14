@@ -598,6 +598,8 @@
 
       document.body.appendChild(impactContainer);
 
+      // After querying sliders, capture select element
+      const impSel = impactContainer.querySelector('#impSel');
       const spd = impactContainer.querySelector('#spd');
       const ang = impactContainer.querySelector('#ang');
       spd.addEventListener('input', ()=> impactContainer.querySelector('#spdVal').textContent = spd.value);
@@ -703,9 +705,13 @@
           wobbleStart = performance.now();
           wobbleAmp = THREE.MathUtils.degToRad(6); // stronger wobble for Mars-sized impact
         }
+        // Disable controls until restart
+        impSel.disabled = true;
+        spd.disabled = true;
+        ang.disabled = true;
+
         impactBtn.dataset.mode = 'restart';
         impactBtn.textContent = 'Restart';
-        impactBtn.classList.add('secondary');
       });
     }
 
